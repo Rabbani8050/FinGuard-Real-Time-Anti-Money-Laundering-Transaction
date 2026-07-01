@@ -1,0 +1,8 @@
+:root {
+  --void: #080C18; --navy: #0C1A30; --panel: #101E38; --card: #132240;
+  --threat: #FF2D55; --clear: #00C896; --amber: #F5C842; --blue: #3B82F6;
+  --muted: #4A6080; --dim: #2A3F5F; --text: #C8D8F0; --subtext: #6A85A8;
+  --font-data: 'JetBrains Mono', monospace; --font-ui: 'Inter', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--void); color: var(--text); font-family: var(--font-ui); }

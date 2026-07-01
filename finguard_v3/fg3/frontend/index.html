@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinGuard — AML Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void:#080C18;--navy:#0C1A30;--panel:#101E38;--card:#132240;
+      --threat:#FF2D55;--clear:#00C896;--amber:#F5C842;--blue:#3B82F6;
+      --muted:#4A6080;--dim:#2A3F5F;--text:#C8D8F0;--sub:#6A85A8;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--void);color:var(--text);font-family:'Inter',sans-serif;height:100vh;display:grid;grid-template-rows:50px 1fr;grid-template-columns:260px 1fr 280px;overflow:hidden}
+
+    /* ── Top bar ── */
+    .topbar{grid-column:1/-1;background:var(--navy);border-bottom:1px solid var(--dim);display:flex;align-items:center;padding:0 20px;gap:14px}
+    .logo{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;letter-spacing:2px;color:#fff}
+    .logo span{color:var(--threat)}
+    .pulse{width:8px;height:8px;border-radius:50%;background:var(--clear);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,.5)}70%{box-shadow:0 0 0 8px rgba(0,200,150,0)}}
+    .live-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--clear)}
+    .topbar-right{margin-left:auto;display:flex;gap:20px;align-items:center}
+    .stat{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--sub)}
+    .stat b{color:var(--text)}
+    .stat.red b{color:var(--threat)}
+
+    /* ── Sidebar ── */
+    .sidebar{background:var(--navy);border-right:1px solid var(--dim);padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+    .sec-title{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+
+    /* metric cards */
+    .metrics{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .mc{background:var(--card);border:1px solid var(--dim);border-radius:6px;padding:10px}
+    .mc-val{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:600}
+    .mc-val.red{color:var(--threat)}.mc-val.green{color:var(--clear)}.mc-val.amber{color:var(--amber)}.mc-val.blue{color:var(--blue)}
+    .mc-label{font-size:10px;color:var(--sub);margin-top:3px}
+
+    /* alert list */
+    .alert-list{display:flex;flex-direction:column;gap:5px}
+    .al{background:var(--card);border:1px solid var(--dim);border-radius:5px;padding:8px 10px;animation:fadeIn .3s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+    .al.critical{border-color:rgba(255,45,85,.5)}
+    .al-top{display:flex;justify-content:space-between;margin-bottom:3px}
+    .al-id{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--threat)}
+    .al-score{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--threat)}
+    .al-from{font-size:10px;color:var(--sub)}
+    .al-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+    .tag{font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 5px;border-radius:3px}
+    .tag.r{background:rgba(255,45,85,.12);color:var(--threat)}
+    .tag.a{background:rgba(245,200,66,.1);color:var(--amber)}
+
+    /* ── Graph ── */
+    .graph-area{background:var(--void);position:relative;overflow:hidden}
+    canvas{position:absolute;inset:0;width:100%;height:100%}
+    .graph-overlay{position:absolute;top:10px;left:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--sub)}
+    .legend{position:absolute;bottom:12px;left:12px;display:flex;gap:14px}
+    .leg{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--sub)}
+    .leg-dot{width:7px;height:7px;border-radius:50%}
+
+    /* ── Right panel ── */
+    .right{background:var(--navy);border-left:1px solid var(--dim);padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+    .tx-row{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--card);border-radius:4px;border-left:3px solid var(--dim);font-family:'JetBrains Mono',monospace;font-size:10px;animation:fadeIn .3s ease}
+    .tx-row.critical{border-left-color:var(--threat)}
+    .tx-row.high{border-left-color:var(--amber)}
+    .tx-row.clean,.tx-row.medium{border-left-color:var(--clear)}
+    .tx-acc{color:var(--sub);width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .tx-amt{color:var(--text);font-weight:500}
+    .tx-badge{font-size:9px;padding:2px 5px;border-radius:3px}
+    .tx-badge.critical{background:rgba(255,45,85,.15);color:var(--threat)}
+    .tx-badge.high{background:rgba(245,200,66,.12);color:var(--amber)}
+    .tx-badge.clean,.tx-badge.medium{background:rgba(0,200,150,.1);color:var(--clear)}
+    .empty-msg{font-size:12px;color:var(--sub);text-align:center;padding:30px 10px}
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">FIN<span>GUARD</span></div>
+  <div class="pulse"></div>
+  <div class="live-label">LIVE — AML MONITOR</div>
+  <div class="topbar-right">
+    <div class="stat">tx/s <b id="tps">0</b></div>
+    <div class="stat">screened <b id="total">0</b></div>
+    <div class="stat red">flagged <b id="flagged">0</b></div>
+    <div class="stat">ws <b id="ws-status" style="color:var(--amber)">connecting…</b></div>
+  </div>
+</div>
+
+<div class="sidebar">
+  <div>
+    <div class="sec-title">Risk metrics</div>
+    <div class="metrics">
+      <div class="mc"><div class="mc-val red" id="m-critical">0</div><div class="mc-label">Critical</div></div>
+      <div class="mc"><div class="mc-val amber" id="m-high">0</div><div class="mc-label">High</div></div>
+      <div class="mc"><div class="mc-val green" id="m-clean">0</div><div class="mc-label">Clean</div></div>
+      <div class="mc"><div class="mc-val blue" id="m-lat">—</div><div class="mc-label">Avg ms</div></div>
+    </div>
+  </div>
+  <div>
+    <div class="sec-title">Active alerts</div>
+    <div class="alert-list" id="alert-list">
+      <div class="empty-msg">Waiting for data…</div>
+    </div>
+  </div>
+</div>
+
+<div class="graph-area">
+  <canvas id="gc"></canvas>
+  <div class="graph-overlay" id="graph-count">0 accounts tracked</div>
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:var(--threat)"></div>Critical</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--amber)"></div>High</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--clear)"></div>Clean</div>
+  </div>
+</div>
+
+<div class="right">
+  <div class="sec-title">Transaction stream</div>
+  <div id="tx-stream"><div class="empty-msg">Waiting for transactions…</div></div>
+</div>
+
+<script>
+// ── Stats ──
+let totalTx=0, flaggedTx=0, criticalTx=0, highTx=0, cleanTx=0, latSum=0, latCount=0, tpsCount=0;
+let lastTick=Date.now();
+
+setInterval(()=>{
+  const elapsed=(Date.now()-lastTick)/1000;
+  document.getElementById('tps').textContent=Math.round(tpsCount/elapsed);
+  tpsCount=0; lastTick=Date.now();
+}, 1000);
+
+// ── Graph ──
+const canvas=document.getElementById('gc');
+const ctx=canvas.getContext('2d');
+const nodes=new Map(), edges=[];
+let phase=0;
+
+function resizeCanvas(){
+  canvas.width=canvas.offsetWidth;
+  canvas.height=canvas.offsetHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function nodeColor(risk){
+  if(risk==='critical')return'#FF2D55';
+  if(risk==='high')return'#F5C842';
+  return'#00C896';
+}
+
+function drawGraph(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  phase+=0.015;
+
+  // edges
+  const now=Date.now();
+  edges.forEach(e=>{
+    const s=nodes.get(e.from), t=nodes.get(e.to);
+    if(!s||!t) return;
+    const age=(now-e.ts)/4000;
+    if(age>1) return;
+    const col=nodeColor(e.risk);
+    ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(t.x,t.y);
+    ctx.strokeStyle=col;
+    ctx.globalAlpha=(1-age)*(e.risk==='critical'?0.55:0.2);
+    ctx.lineWidth=e.risk==='critical'?1.8:0.9;
+    ctx.stroke(); ctx.globalAlpha=1;
+
+    // particle
+    if(age<0.6){
+      const p=age/0.6;
+      ctx.beginPath();
+      ctx.arc(s.x+(t.x-s.x)*p, s.y+(t.y-s.y)*p, 3,0,Math.PI*2);
+      ctx.fillStyle=col; ctx.globalAlpha=0.9; ctx.fill(); ctx.globalAlpha=1;
+    }
+  });
+
+  // nodes
+  nodes.forEach(n=>{
+    const col=nodeColor(n.risk);
+    if(n.risk==='critical'){
+      ctx.beginPath(); ctx.arc(n.x,n.y,14+Math.sin(phase*3)*2,0,Math.PI*2);
+      ctx.strokeStyle=col; ctx.globalAlpha=0.15; ctx.lineWidth=2; ctx.stroke(); ctx.globalAlpha=1;
+    }
+    ctx.beginPath(); ctx.arc(n.x,n.y,9,0,Math.PI*2);
+    ctx.fillStyle=col; ctx.globalAlpha=0.2; ctx.fill();
+    ctx.strokeStyle=col; ctx.globalAlpha=0.9; ctx.lineWidth=1.5; ctx.stroke(); ctx.globalAlpha=1;
+    ctx.font="9px 'JetBrains Mono',monospace";
+    ctx.fillStyle='#6A85A8'; ctx.textAlign='center';
+    ctx.fillText(n.id.slice(0,8), n.x, n.y+20);
+  });
+
+  // cleanup old edges
+  const cutoff=now-5000;
+  while(edges.length && edges[0].ts < cutoff) edges.shift();
+
+  requestAnimationFrame(drawGraph);
+}
+drawGraph();
+
+function addNode(id, risk){
+  if(!nodes.has(id)){
+    const W=canvas.width||800, H=canvas.height||500;
+    const cx=W/2, cy=H/2;
+    const a=Math.random()*Math.PI*2, r=80+Math.random()*160;
+    nodes.set(id,{id,x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r,risk});
+  } else {
+    const n=nodes.get(id);
+    if(risk==='critical') n.risk='critical';
+    else if(risk==='high' && n.risk!=='critical') n.risk='high';
+  }
+  document.getElementById('graph-count').textContent=`${nodes.size} accounts tracked`;
+}
+
+// ── Alerts ──
+const alertData=[];
+function addAlert(tx){
+  const id='AML-'+Math.random().toString(36).slice(2,6).toUpperCase();
+  alertData.unshift({id, from:tx.from_account, to:tx.to_account,
+    amount:tx.amount, score:tx.risk_score, level:tx.risk_level, tags:tx.pattern_tags||[]});
+  if(alertData.length>30) alertData.pop();
+  renderAlerts();
+}
+
+function renderAlerts(){
+  const el=document.getElementById('alert-list');
+  if(alertData.length===0){el.innerHTML='<div class="empty-msg">No alerts yet</div>';return;}
+  el.innerHTML=alertData.slice(0,10).map(a=>`
+    <div class="al ${a.level}">
+      <div class="al-top"><span class="al-id">${a.id}</span><span class="al-score">${a.score}</span></div>
+      <div class="al-from">${a.from} → ${a.to} · $${Number(a.amount).toLocaleString()}</div>
+      <div class="al-tags">${(a.tags||[]).map(t=>`<span class="tag r">${t}</span>`).join('')}</div>
+    </div>`).join('');
+}
+
+// ── TX stream ──
+function addTxRow(tx){
+  const stream=document.getElementById('tx-stream');
+  // remove placeholder
+  const ph=stream.querySelector('.empty-msg');
+  if(ph) ph.remove();
+
+  const level=(tx.risk_level||'clean').toLowerCase();
+  const amt='$'+Number(tx.amount).toLocaleString(undefined,{maximumFractionDigits:0});
+  const row=document.createElement('div');
+  row.className=`tx-row ${level}`;
+  row.innerHTML=`<span class="tx-acc">${(tx.from_account||'').slice(0,9)}</span>
+    <span class="tx-amt">${amt}</span>
+    <span class="tx-badge ${level}">${(tx.risk_level||'').toUpperCase()}</span>`;
+  stream.insertBefore(row, stream.firstChild);
+  while(stream.children.length>20) stream.removeChild(stream.lastChild);
+}
+
+// ── WebSocket ──
+function connect(){
+  const ws=new WebSocket(`ws://${location.host}/ws/live`);
+
+  ws.onopen=()=>{
+    document.getElementById('ws-status').textContent='connected';
+    document.getElementById('ws-status').style.color='#00C896';
+    // remove alert placeholder
+    const ph=document.getElementById('alert-list').querySelector('.empty-msg');
+    if(ph) ph.remove();
+  };
+
+  ws.onmessage=(e)=>{
+    const tx=JSON.parse(e.data);
+    const level=(tx.risk_level||'clean').toLowerCase();
+
+    // stats
+    totalTx++; tpsCount++;
+    document.getElementById('total').textContent=totalTx;
+    if(tx.flagged){ flaggedTx++; document.getElementById('flagged').textContent=flaggedTx; }
+    if(level==='critical'){ criticalTx++; document.getElementById('m-critical').textContent=criticalTx; }
+    else if(level==='high'){ highTx++; document.getElementById('m-high').textContent=highTx; }
+    else{ cleanTx++; document.getElementById('m-clean').textContent=cleanTx; }
+    if(tx.latency_ms){ latSum+=tx.latency_ms; latCount++;
+      document.getElementById('m-lat').textContent=Math.round(latSum/latCount)+'ms'; }
+
+    // graph
+    addNode(tx.from_account, level);
+    addNode(tx.to_account, 'clean');
+    edges.push({from:tx.from_account, to:tx.to_account, risk:level, ts:Date.now()});
+
+    // tx row
+    addTxRow(tx);
+
+    // alert
+    if(tx.flagged) addAlert(tx);
+  };
+
+  ws.onclose=()=>{
+    document.getElementById('ws-status').textContent='reconnecting…';
+    document.getElementById('ws-status').style.color='#F5C842';
+    setTimeout(connect, 2000);
+  };
+
+  ws.onerror=()=>ws.close();
+}
+
+connect();
+</script>
+</body>
+</html>
